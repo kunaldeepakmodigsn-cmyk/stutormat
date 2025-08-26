@@ -3,7 +3,7 @@ name = 'TutorMatchingPlatform'
 description = ''
 authors = []
 telemetry = true
-cache_dir = '.\.cache'
+cache_dir = './.cache'
 requirements = []
 [contracts.TutorMatchingPlatform]
 path = 'contracts/TutorMatchingPlatform.clar'
