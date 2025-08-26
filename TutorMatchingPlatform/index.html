@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduChain Marketplace</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@stacks/connect@6.3.0/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stacks/stacks.js@6.3.0/dist/index.min.js"></script>
+</head>
+<body>
+  <div class="theme-toggle-container">
+    <label class="theme-switch">
+      <input type="checkbox" id="theme-toggle">
+      <span class="slider round"></span>
+    </label>
+  </div>
+
+  <div class="container">
+    <header class="header">
+      <h1>EduChain Marketplace</h1>
+      <p>Decentralized tutoring with escrow & reputation — now with Stacks</p>
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span class="stat-number" id="totalTutors">0</span>
+          <span class="stat-label">Active Tutors</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" id="totalSessions">0</span>
+          <span class="stat-label">Sessions Booked</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" id="ethInEscrow">15.7</span>
+          <span class="stat-label">STX in Escrow (demo)</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="wallet-section">
+      <div class="wallet-info">
+        <div class="wallet-status">
+          <span id="statusDot" class="status-dot"></span>
+          <span id="walletStatus">Connected</span>
+          <span id="accountInfo" style="font-family:monospace;"> - Demo Mode</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <div class="user-type-selector">
+            <span style="font-weight:600;">I am a: </span>
+            <button class="role-btn active" id="studentBtn">Student</button>
+            <button class="role-btn" id="tutorBtn">Tutor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="left-panel">
+        <div class="card" id="tutorRegistration" style="display:none;">
+          <h3>👨‍🏫 Register as Tutor</h3>
+          <div class="form-group">
+            <label for="tutorName">Full Name</label>
+            <input type="text" id="tutorName" placeholder="Jane Doe"/>
+          </div>
+          <div class="form-group">
+            <label for="tutorSubject">Subject</label>
+            <select id="tutorSubject">
+              <option value="">Select Subject</option>
+              <option>Mathematics</option>
+              <option>Physics</option>
+              <option>Chemistry</option>
+              <option>Biology</option>
+              <option>Computer Science</option>
+              <option>English</option>
+              <option>History</option>
+              <option>Economics</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="tutorRate">Hourly Rate (STX)</label>
+            <input type="number" id="tutorRate" step="0.001" placeholder="0.02"/>
+          </div>
+          <div class="form-group">
+            <label for="tutorDescription">Description & Qualifications</label>
+            <textarea id="tutorDescription" placeholder="Experience, qualifications, teaching style..."></textarea>
+          </div>
+          <button class="btn" id="registerTutorBtn">Register as Tutor</button>
+          <div id="tutorRegisterStatus"></div>
+        </div>
+
+        <div class="card" id="tutorListings">
+          <h3>🔍 Find Tutors</h3>
+          <div class="form-group">
+            <label for="subjectFilter">Filter by Subject</label>
+            <select id="subjectFilter">
+              <option value="">All Subjects</option>
+              <option>Mathematics</option>
+              <option>Physics</option>
+              <option>Chemistry</option>
+              <option>Biology</option>
+              <option>Computer Science</option>
+              <option>English</option>
+              <option>History</option>
+              <option>Economics</option>
+            </select>
+          </div>
+          <div id="tutorsContainer">
+            <div class="loading">Connect your wallet to view tutors</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="card">
+          <h3>💰 Dashboard</h3>
+          <div id="dashboardContent">
+            <p style="color: var(--subtext-color);">Connect wallet to see your dashboard</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>📚 My Sessions</h3>
+          <div id="sessionsContainer">
+            <p style="color: var(--subtext-color);">No active sessions</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>⭐ Reputation System</h3>
+          <p style="font-size: 0.9rem; color: var(--subtext-color); line-height: 1.5;">
+            Reputation grows with successful sessions and ratings. Higher reputation unlocks better visibility.
+          </p>
+          <div id="userReputation"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <script>
+    let userAccount = 'Demo Account';
+    let currentRole = 'student';
+    let tutors = [];
+    let sessions = [];
+    let userReputation = { rating: 0, totalEarned: 0 };
+
+    const statusDot = document.getElementById('statusDot');
+    const walletStatus = document.getElementById('walletStatus');
+    const accountInfo = document.getElementById('accountInfo');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const studentBtn = document.getElementById('studentBtn');
+    const tutorBtn = document.getElementById('tutorBtn');
+    const tutorRegistration = document.getElementById('tutorRegistration');
+    const tutorListings = document.getElementById('tutorListings');
+    const registerTutorBtn = document.getElementById('registerTutorBtn');
+    const tutorsContainer = document.getElementById('tutorsContainer');
+    const dashboardContent = document.getElementById('dashboardContent');
+    const sessionsContainer = document.getElementById('sessionsContainer');
+    const notificationEl = document.getElementById('notification');
+
+    function updateWalletUI(connected) {
+      if (connected) {
+        statusDot.classList.add('connected');
+        walletStatus.textContent = 'Connected';
+        accountInfo.textContent = ' - ' + userAccount.slice(0,6) + '...' + userAccount.slice(-4);
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'none';
+        registerTutorBtn.disabled = false;
+      } else {
+        statusDot.classList.remove('connected');
+        walletStatus.textContent = 'Not Connected';
+        accountInfo.textContent = '';
+        connectBtn.style.display = 'inline-block';
+        disconnectBtn.style.display = 'none';
+        registerTutorBtn.disabled = true;
+        tutorsContainer.innerHTML = '<div class="loading">Connect your wallet to view tutors</div>';
+        dashboardContent.innerHTML = '<p style="color: var(--subtext-color);">Connect wallet to see your dashboard</p>';
+        sessionsContainer.innerHTML = '<p style="color: var(--subtext-color);">No active sessions</p>';
+      }
+    }
+
+    function switchRole(role) {
+      currentRole = role;
+      studentBtn.classList.toggle('active', role === 'student');
+      tutorBtn.classList.toggle('active', role === 'tutor');
+      tutorRegistration.style.display = role === 'tutor' ? 'block' : 'none';
+      tutorListings.style.display = role === 'student' ? 'block' : 'none';
+      if (userAccount) updateDashboard();
+    }
+
+    studentBtn.addEventListener('click', () => switchRole('student'));
+    tutorBtn.addEventListener('click', () => switchRole('tutor'));
+
+    document.getElementById('registerTutorBtn').addEventListener('click', registerTutor);
+
+    function setStatus(message, type, elementId) {
+      const el = document.getElementById(elementId);
+      el.innerHTML = `<div class="notification ${type}" style="position:relative;margin-top:12px;">${message}</div>`;
+    }
+
+    async function registerTutor() {
+      const name = document.getElementById('tutorName').value.trim();
+      const subject = document.getElementById('tutorSubject').value;
+      const rate = document.getElementById('tutorRate').value;
+      const description = document.getElementById('tutorDescription').value.trim();
+
+      if (!name || !subject || !rate || !description) {
+        return showNotification('Please fill in all fields', 'error');
+      }
+
+      setStatus('Registering tutor profile...', 'info', 'tutorRegisterStatus');
+      await new Promise(r => setTimeout(r, 600));
+
+      const newTutor = {
+        id: tutors.length + 1,
+        name, subject,
+        rate: parseFloat(rate),
+        rating: 0,
+        totalSessions: 0,
+        description,
+        address: userAccount,
+        isVerified: false
+      };
+      tutors.push(newTutor);
+
+      document.getElementById('tutorName').value = '';
+      document.getElementById('tutorSubject').value = '';
+      document.getElementById('tutorRate').value = '';
+      document.getElementById('tutorDescription').value = '';
+
+      setStatus('Tutor profile registered successfully! 🎉', 'success', 'tutorRegisterStatus');
+      loadTutors();
+      updateDashboard();
+      document.getElementById('totalTutors').textContent = tutors.length;
+    }
+
+    document.getElementById('subjectFilter').addEventListener('change', loadTutors);
+
+    function filterTutorsBySubject() {
+      const subject = document.getElementById('subjectFilter').value;
+      if (!subject) return tutors;
+      return tutors.filter(t => t.subject === subject);
+    }
+
+    function loadTutors() {
+      if (!userAccount) {
+        tutorsContainer.innerHTML = '<div class="loading">Connect your wallet to view tutors</div>';
+        return;
+      }
+      const list = filterTutorsBySubject();
+      if (list.length === 0) {
+        tutorsContainer.innerHTML = '<div class="loading">No tutors found for selected criteria</div>';
+        return;
+      }
+      tutorsContainer.innerHTML = `
+        <div class="tutor-grid">
+          ${list.map(t => `
+            <div class="tutor-card">
+              <div class="tutor-header">
+                <div class="tutor-info">
+                  <h4>${t.name} ${t.isVerified ? '✅' : ''}</h4>
+                  <div class="tutor-subject">${t.subject}</div>
+                </div>
+                <div class="reputation-badge">
+                  <span class="stars">⭐</span>
+                  <span>${t.rating || 'New'}</span>
+                </div>
+              </div>
+              <div class="tutor-description">${t.description}</div>
+              <div class="tutor-meta">
+                <span class="rate">${t.rate} STX/hr</span>
+                <span class="sessions">${t.totalSessions} sessions</span>
+              </div>
+              <button class="btn" onclick="bookSession(${t.id})">Book Session</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    window.bookSession = async function(tutorId, hours = 1) {
+      const tutor = tutors.find(t => t.id === tutorId);
+      if (!userAccount) return showNotification('Connect wallet first', 'error');
+      if (!tutor) return showNotification('Tutor not found', 'error');
+
+      const totalCost = parseFloat(tutor.rate) * hours;
+      showNotification('Booking session... (demo escrow)', 'info');
+      await new Promise(r => setTimeout(r, 700));
+
+      const newSession = {
+        id: sessions.length + 1,
+        tutorId: tutorId,
+        tutorName: tutor.name,
+        subject: tutor.subject,
+        student: userAccount,
+        tutor: tutor.address,
+        hours,
+        rate: tutor.rate,
+        totalCost: totalCost.toFixed(4),
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        escrowReleased: false
+      };
+      sessions.push(newSession);
+      document.getElementById('totalSessions').textContent = sessions.length;
+
+      showNotification(`Session booked! ${totalCost.toFixed(4)} STX locked in escrow (demo)`, 'success');
+      loadUserSessions();
+      updateDashboard();
+    }
+
+    function loadUserSessions() {
+      if (!userAccount) {
+        sessionsContainer.innerHTML = '<p style="color: var(--subtext-color);">Connect wallet to see your sessions</p>';
+        return;
+      }
+      const userSessions = sessions.filter(s => s.student === userAccount || s.tutor === userAccount);
+      if (userSessions.length === 0) {
+        sessionsContainer.innerHTML = '<p style="color: var(--subtext-color);">No active sessions</p>';
+        return;
+      }
+      sessionsContainer.innerHTML = `
+        <div style="display:grid;gap:12px;">
+          ${userSessions.map(session => `
+            <div class="booking-card ${session.status}">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <strong>${session.tutorName} - ${session.subject}</strong>
+                <span>${session.status}</span>
+              </div>
+              <div style="font-size:0.9rem;color:var(--subtext-color);">
+                ${session.hours} hours • ${session.totalCost} STX
+              </div>
+              ${session.status === 'pending' ? `
+                <div style="margin-top:8px;">
+                  <button class="btn" onclick="completeSession(${session.id})">Complete Session</button>
+                </div>
+              ` : session.status === 'completed' && !session.escrowReleased ? `
+                <div style="margin-top:8px;">
+                  <button class="btn" onclick="rateSession(${session.id}, 5, 'Great session!')">Rate & Release Payment</button>
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    window.completeSession = function(sessionId) {
+      const s = sessions.find(x => x.id === sessionId);
+      if (!s) return;
+      s.status = 'completed';
+      s.completedAt = new Date().toISOString();
+      showNotification('Session marked as completed! Please rate your experience.', 'success');
+      loadUserSessions();
+    };
+
+    window.rateSession = function(sessionId, rating, review) {
+      const s = sessions.find(x => x.id === sessionId);
+      if (!s) return;
+      s.rating = rating;
+      s.review = review;
+      s.escrowReleased = true;
+
+      const tutor = tutors.find(t => t.id === s.tutorId);
+      if (tutor) {
+        const totalRating = (tutor.rating * tutor.totalSessions + rating) / (tutor.totalSessions + 1);
+        tutor.rating = Math.round(totalRating * 10) / 10;
+        tutor.totalSessions += 1;
+        userReputation.totalEarned = Math.round((userReputation.totalEarned + parseFloat(s.totalCost)) * 1e6) / 1e6;
+      }
+      showNotification(`Payment of ${s.totalCost} STX released to tutor! (demo)`, 'success');
+      loadTutors();
+      loadUserSessions();
+      updateDashboard();
+    };
+
+    async function updateDashboard() {
+      const userSessions = sessions.filter(s => s.student === userAccount || s.tutor === userAccount);
+      const active = userSessions.filter(s => s.status !== 'completed').length;
+      const completed = userSessions.filter(s => s.status === 'completed').length;
+
+      dashboardContent.innerHTML = `
+        <div style="display:grid;gap:12px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span>Wallet Address:</span>
+            <span style="font-family:monospace;">${userAccount}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Role:</span>
+            <span>${currentRole.charAt(0).toUpperCase()+currentRole.slice(1)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Active Sessions:</span>
+            <span>${active}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Completed Sessions:</span>
+            <span>${completed}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Total Earned (demo):</span>
+            <span>${userReputation.totalEarned} STX</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function showNotification(message, type) {
+      notificationEl.textContent = message;
+      notificationEl.className = 'notification show ' + (type || 'info');
+      setTimeout(() => notificationEl.className = 'notification', 3000);
+    }
+
+    const themeToggle = document.getElementById('theme-toggle');
+    const root = document.documentElement;
+    const storedTheme = localStorage.getItem('theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    if (storedTheme === 'dark') {
+      root.setAttribute('data-theme', 'dark');
+      themeToggle.checked = true;
+    } else {
+      root.removeAttribute('data-theme');
+      themeToggle.checked = false;
+    }
+
+    themeToggle.addEventListener('change', () => {
+      if (themeToggle.checked) {
+        root.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        root.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      }
+    });
+
+    studentBtn.addEventListener('click', () => switchRole('student'));
+    tutorBtn.addEventListener('click', () => switchRole('tutor'));
+
+    updateWalletUI(true);
+    loadTutors();
+    updateDashboard();
+    loadUserSessions();
+  </script>
+</body>
+</html>
