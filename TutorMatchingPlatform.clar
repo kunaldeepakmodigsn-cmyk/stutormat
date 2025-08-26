@@ -29,7 +29,7 @@
   (let
     (
       (session-id (+ (var-get session-counter) u1))
-      (expires-at (+ block-height duration))
+      (expires-at (+ stacks-block-height duration))
     )
     (asserts! (> amount u0) err-invalid-amount)
     (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
@@ -40,7 +40,7 @@
         tutor: tutor,
         amount: amount,
         status: "pending",
-        created-at: block-height,
+        created-at: stacks-block-height,
         expires-at: expires-at
       }
     )
